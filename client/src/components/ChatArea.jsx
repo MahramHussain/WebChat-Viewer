@@ -49,13 +49,23 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const scrollingTimeout = useRef(null);
 
+  const displayMessages = useMemo(() => {
+    if (!isMobile) return messages;
+    // Mobile browsers have a strict CSS height limit (e.g., ~8.3 million pixels on iOS).
+    // 342,000 messages easily exceeds 20 million pixels, causing the browser to cut off
+    // the bottom of the container, making the newest messages inaccessible.
+    // By slicing to the latest 80,000 messages on mobile, we safely bypass this limit
+    // while still providing years of chat history. Desktop remains unaffected.
+    return messages.length > 80000 ? messages.slice(-80000) : messages;
+  }, [messages, isMobile]);
+
   useEffect(() => {
-    if (messages.length) {
+    if (displayMessages.length) {
       setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, align: 'end', behavior: 'auto' });
+        virtuosoRef.current?.scrollToIndex({ index: displayMessages.length - 1, align: 'end', behavior: 'auto' });
       }, 100);
     }
-  }, [messages.length]);
+  }, [displayMessages.length]);
 
   useEffect(() => {
     if (!searchQuery) {
@@ -64,7 +74,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
       return;
     }
     const q = searchQuery.toLowerCase();
-    const matches = messages
+    const matches = displayMessages
       .map((m, idx) => (m.content && m.content.toLowerCase().includes(q) ? idx : -1))
       .filter((i) => i !== -1);
 
@@ -75,7 +85,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
     } else {
       setCurrentMatchIdx(-1);
     }
-  }, [searchQuery, messages]);
+  }, [searchQuery, displayMessages]);
 
   const jumpToSearchIdx = (matchListIdx, matches = searchMatches) => {
     const virtualIdx = matches[matchListIdx];
@@ -86,9 +96,9 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
 
   const dateIndexes = useMemo(() => {
     const dates = [];
-    if (!messages.length) return dates;
+    if (!displayMessages.length) return dates;
     let lastDate = null;
-    messages.forEach((msg, idx) => {
+    displayMessages.forEach((msg, idx) => {
       const msgDate = msg.timestamp.split(' ')[0];
       if (msgDate !== lastDate) {
         dates.push({ label: formatNiceDate(msgDate), index: idx });
@@ -96,7 +106,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
       }
     });
     return dates;
-  }, [messages]);
+  }, [displayMessages]);
 
   const handleScrollState = useCallback((scrolling) => {
     setIsScrolling(scrolling);
@@ -121,7 +131,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
     );
   }
 
-  const floatingDateString = messages[topIndex] ? formatNiceDate(messages[topIndex].timestamp.split(' ')[0]) : '';
+  const floatingDateString = displayMessages[topIndex] ? formatNiceDate(displayMessages[topIndex].timestamp.split(' ')[0]) : '';
 
   return (
     <div className="main-chat" style={{ display: isMobile ? 'flex' : 'flex' }}>
@@ -183,8 +193,8 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
           <Virtuoso
             ref={virtuosoRef}
             style={{ flex: 1, width: '100%' }}
-            data={messages}
-            initialTopMostItemIndex={messages.length - 1}
+            data={displayMessages}
+            initialTopMostItemIndex={displayMessages.length - 1}
             isScrolling={handleScrollState}
             atBottomThreshold={100}
             atBottomStateChange={(atBottom) => setShowScrollBottom(!atBottom)}
@@ -194,7 +204,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
               let msgDate = msg.timestamp.split(' ')[0];
               if (index === 0) showDate = true;
               else {
-                const prevDate = messages[index - 1]?.timestamp.split(' ')[0];
+                const prevDate = displayMessages[index - 1]?.timestamp.split(' ')[0];
                 if (msgDate !== prevDate) showDate = true;
               }
 
@@ -252,7 +262,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
         ))}
       </div>
 
-      <div className={`fab-bottom ${showScrollBottom ? 'visible' : ''}`} onClick={() => virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, align: 'start', behavior: 'smooth' })}>
+      <div className={`fab-bottom ${showScrollBottom ? 'visible' : ''}`} onClick={() => virtuosoRef.current?.scrollToIndex({ index: displayMessages.length - 1, align: 'start', behavior: 'smooth' })}>
         <ChevronDown size={24} />
       </div>
     </div>
