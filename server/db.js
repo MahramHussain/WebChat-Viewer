@@ -23,8 +23,27 @@ if (process.env.DB_PATH && fs.existsSync(localDbPath)) {
 
     if (shouldCopy) {
         console.log("Volume DB is empty! Injecting your local chat.db...");
+        
+        // Copy main database
         fs.copyFileSync(localDbPath, dbPath);
-        console.log("✅ Database injected successfully!");
+        
+        // Copy WAL file if it exists
+        const localWal = localDbPath + '-wal';
+        const volWal = dbPath + '-wal';
+        if (fs.existsSync(localWal)) {
+            fs.copyFileSync(localWal, volWal);
+            console.log("✅ Copied WAL file");
+        }
+
+        // Copy SHM file if it exists
+        const localShm = localDbPath + '-shm';
+        const volShm = dbPath + '-shm';
+        if (fs.existsSync(localShm)) {
+            fs.copyFileSync(localShm, volShm);
+            console.log("✅ Copied SHM file");
+        }
+
+        console.log("✅ Entire database injected successfully!");
     }
 }
 
