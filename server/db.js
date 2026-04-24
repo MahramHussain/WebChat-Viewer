@@ -1,8 +1,33 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 
-// 🔴 CHANGED: Looks for Railway's DB_PATH first, falls back to local 'chat.db' for testing
-const dbPath = process.env.DB_PATH || path.join(__dirname, 'chat.db');
+// Where Railway expects the DB vs where it is on your local PC
+const localDbPath = path.join(__dirname, 'chat.db');
+const dbPath = process.env.DB_PATH || localDbPath;
+
+// 🔴 THE AUTO-COPY TRICK
+// If we are on Railway (DB_PATH exists) and we have your actual chat.db uploaded...
+if (process.env.DB_PATH && fs.existsSync(localDbPath)) {
+    let shouldCopy = false;
+    
+    // If the volume has no file yet, or if it's a blank auto-generated database (under 50KB)
+    if (!fs.existsSync(dbPath)) {
+        shouldCopy = true;
+    } else {
+        const stats = fs.statSync(dbPath);
+        if (stats.size < 50000) { // 50KB means it's practically empty
+            shouldCopy = true;
+        }
+    }
+
+    if (shouldCopy) {
+        console.log("Volume DB is empty! Injecting your local chat.db...");
+        fs.copyFileSync(localDbPath, dbPath);
+        console.log("✅ Database injected successfully!");
+    }
+}
+
 const db = new Database(dbPath);
 
 db.pragma('journal_mode = WAL');
