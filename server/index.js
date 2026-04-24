@@ -6,9 +6,10 @@ const readline = require('readline');
 
 const app = express();
 
-// 🔴 CHANGED: Updated CORS to strictly allow your Cloudflare frontend to talk to this backend
+// 🔴 THE NUKE: Hardcoding the exact allowed websites. 
+// It will now accept requests from your local machine AND your exact Cloudflare production link.
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173', // Vite's default local port
+    origin: ['http://localhost:5173', 'https://webchat-viewer.pages.dev'],
     credentials: true
 }));
 
@@ -220,8 +221,6 @@ app.post('/api/upload-chat', (req, res) => {
 });
 
 // ── Serve React frontend in production ──
-// NOTE: I left this in so nothing breaks, but since Cloudflare Pages is hosting the frontend, 
-// Railway will just ignore this block anyway. Safe to keep!
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
