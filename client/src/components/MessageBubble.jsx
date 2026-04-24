@@ -42,7 +42,7 @@ export default function MessageBubble({ msg, isOut, isHighlighted, R2_URL }) {
           </>
         );
       case 'video': return <video src={msg.media_url} className="media-video" controls muted playsInline preload="none" />;
-      case 'audio': return <WaveAudioPlayer url={msg.media_url} isOut={isOut} />;
+      case 'audio': return <WaveAudioPlayer url={msg.media_url} isOut={isOut} msg={msg} R2_URL={R2_URL} />;
       case 'sticker': return <img src={msg.media_url} className="media-sticker" alt="sticker" onError={(e) => { e.target.style.display = 'none'; }} />;
       case 'document':
         return (

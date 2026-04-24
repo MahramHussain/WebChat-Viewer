@@ -8,6 +8,7 @@ export default function LockScreen({ onUnlock }) {
   const [pin, setPin] = useState('');
   const [shake, setShake] = useState(false);
   const [attempts, setAttempts] = useState(0);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   const errorMessages = [
     "Wrong code",
@@ -37,7 +38,10 @@ export default function LockScreen({ onUnlock }) {
     try {
       const res = await axios.post(`${API_URL}/api/verify-pin`, { pin });
       if (res.data.success) {
-        onUnlock();
+        setIsUnlocking(true);
+        setTimeout(() => {
+          onUnlock();
+        }, 600);
       }
     } catch (err) {
       handleError();
@@ -61,7 +65,7 @@ export default function LockScreen({ onUnlock }) {
   };
 
   return (
-    <div id="lock-screen" className="lock-screen-container">
+    <div id="lock-screen" className={`lock-screen-container ${isUnlocking ? 'unlocking' : ''}`}>
       <div className={`lock-card ${shake ? 'shake' : ''}`}>
         <h2>Enter Security Code</h2>
         <p>The Day It All Began</p>
@@ -73,8 +77,11 @@ export default function LockScreen({ onUnlock }) {
           onKeyDown={(e) => e.key === 'Enter' && handleUnlock()}
           placeholder="••••"
           className="pin-input"
+          disabled={isUnlocking}
         />
-        <button onClick={handleUnlock} className="unlock-btn">Unlock</button>
+        <button onClick={handleUnlock} className="unlock-btn" disabled={isUnlocking}>
+          Unlock
+        </button>
       </div>
     </div>
   );

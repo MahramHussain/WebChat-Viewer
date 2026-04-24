@@ -124,29 +124,30 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
 
   return (
     <div className="main-chat" style={{ display: isMobile ? 'flex' : 'flex' }}>
-      <div className="fab-top-group">
-        <div className="fab-top" onClick={() => setUploadOpen(true)}>
-          <UploadCloud size={20} />
-        </div>
-        <div className="fab-top" onClick={() => setSearchOpen(!searchOpen)}>
-          <Search size={20} />
-        </div>
-        <div className="fab-top" onClick={() => virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start', behavior: 'smooth' })}>
-          <ChevronUp size={22} />
-        </div>
-        <div className="fab-top" onClick={() => setDateMenuOpen(!dateMenuOpen)} style={{ backgroundColor: '#005c4b', color: 'white' }}>
-          <Calendar size={18} />
-        </div>
-      </div>
 
       <div className="chat-header">
         {isMobile && (
-          <ArrowLeft size={24} style={{ marginRight: '15px', cursor: 'pointer' }} onClick={() => setActiveChat(null)} />
+          <ArrowLeft size={24} style={{ marginRight: '15px', cursor: 'pointer', flexShrink: 0 }} onClick={() => setActiveChat(null)} />
         )}
-        <img src={activeChat.img} alt={activeChat.name} className="chat-avatar" />
-        <div style={{ flex: 1 }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600 }}>{activeChat.name}</h3>
+        <img src={activeChat.img} alt={activeChat.name} className="chat-avatar" style={{ flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0, paddingRight: '10px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeChat.name}</h3>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{messages.length.toLocaleString()} messages</p>
+        </div>
+
+        <div className="fab-top-group">
+          <div className="fab-top" onClick={() => setUploadOpen(true)}>
+            <UploadCloud size={isMobile ? 18 : 20} />
+          </div>
+          <div className="fab-top" onClick={() => setSearchOpen(!searchOpen)}>
+            <Search size={isMobile ? 18 : 20} />
+          </div>
+          <div className="fab-top" onClick={() => virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start', behavior: 'smooth' })}>
+            <ChevronUp size={isMobile ? 20 : 22} />
+          </div>
+          <div className="fab-top" onClick={() => setDateMenuOpen(!dateMenuOpen)} style={{ backgroundColor: dateMenuOpen ? '#005c4b' : '', color: dateMenuOpen ? 'white' : '' }}>
+            <Calendar size={isMobile ? 16 : 18} />
+          </div>
         </div>
       </div>
 
