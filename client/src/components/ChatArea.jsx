@@ -46,6 +46,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
   const [topIndex, setTopIndex] = useState(0);
   const [isScrolling, setIsScrolling] = useState(false);
   const [showFloatingDate, setShowFloatingDate] = useState(false);
+  const [showScrollBottom, setShowScrollBottom] = useState(false);
   const scrollingTimeout = useRef(null);
 
   useEffect(() => {
@@ -181,10 +182,12 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
         {!loading && (
           <Virtuoso
             ref={virtuosoRef}
-            style={{ height: '100%', width: '100%' }}
+            style={{ flex: 1, width: '100%' }}
             data={messages}
             initialTopMostItemIndex={messages.length - 1}
             isScrolling={handleScrollState}
+            atBottomThreshold={100}
+            atBottomStateChange={(atBottom) => setShowScrollBottom(!atBottom)}
             rangeChanged={(range) => setTopIndex(range.startIndex)}
             itemContent={(index, msg) => {
               let showDate = false;
@@ -249,7 +252,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
         ))}
       </div>
 
-      <div className="fab-bottom" onClick={() => virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, align: 'start', behavior: 'smooth' })}>
+      <div className={`fab-bottom ${showScrollBottom ? 'visible' : ''}`} onClick={() => virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, align: 'start', behavior: 'smooth' })}>
         <ChevronDown size={24} />
       </div>
     </div>

@@ -23,12 +23,26 @@ import App from './App.jsx'
   const ROWS = HEART.length        // 9
   const COLS = HEART[0].length     // 9
 
+  // Pre-render heart once at native 1px-per-cell onto a tiny offscreen canvas
+  const offscreen = document.createElement('canvas')
+  offscreen.width  = COLS
+  offscreen.height = ROWS
+  const offCtx = offscreen.getContext('2d')
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (!HEART[r][c]) continue
+      offCtx.fillStyle = (r < 3 && c < 4) ? '#ff6b8a' : '#e8003a'
+      offCtx.fillRect(c, r, 1, 1)
+    }
+  }
+
+  // Display canvas — written to favicon each frame
   const canvas = document.createElement('canvas')
-  canvas.width = SIZE
+  canvas.width  = SIZE
   canvas.height = SIZE
   const ctx = canvas.getContext('2d')
+  ctx.imageSmoothingEnabled = false   // nearest-neighbour = crisp pixel art
 
-  // Get or create the favicon <link> tag
   let link = document.querySelector("link[rel~='icon']")
   if (!link) {
     link = document.createElement('link')
@@ -37,39 +51,22 @@ import App from './App.jsx'
   }
 
   let frame = 0
-  const FPS = 60
-  const PULSE_SPEED = 1.5   // beats per second
+  const FPS         = 60
+  const PULSE_SPEED = 2.2   // beats per second
 
   function drawHeart(scale) {
     ctx.clearRect(0, 0, SIZE, SIZE)
-
-    const pixW = Math.round((SIZE / COLS) * scale)
-    const pixH = Math.round((SIZE / ROWS) * scale)
-    const offsetX = Math.round((SIZE - pixW * COLS) / 2)
-    const offsetY = Math.round((SIZE - pixH * ROWS) / 2)
-
-    // Deep red core with a hot-pink highlight for the pixelated look
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        if (!HEART[r][c]) continue
-        // Top-left quarter gets a lighter pink highlight
-        const isHighlight = r < 3 && c < 4
-        ctx.fillStyle = isHighlight ? '#ff6b8a' : '#e8003a'
-        ctx.fillRect(
-          offsetX + c * pixW,
-          offsetY + r * pixH,
-          pixW,
-          pixH
-        )
-      }
-    }
+    // Continuous (non-rounded) size → smooth throb, no snapping
+    const heartPx = SIZE * scale
+    const offset  = (SIZE - heartPx) / 2
+    ctx.drawImage(offscreen, offset, offset, heartPx, heartPx)
   }
 
   function tick() {
     frame++
-    // Sine wave: oscillates between 0.68 (small) and 0.85 (large) — compact
+    // Sine wave: 0.55 (small) → 0.85 (large) — wide range = visible throb
     const t = (Math.sin((frame / FPS) * PULSE_SPEED * Math.PI * 2) + 1) / 2
-    const scale = 0.68 + t * 0.17
+    const scale = 0.55 + t * 0.30
 
     drawHeart(scale)
     link.href = canvas.toDataURL('image/png')

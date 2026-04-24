@@ -28,7 +28,7 @@ body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-main);
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -webkit-user-select: none;
@@ -47,7 +47,7 @@ body {
 /* LAYOUT */
 .app-container {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   width: 100vw;
   padding: 16px;
   background-color: #090e11;
@@ -147,6 +147,8 @@ body {
   border-radius: 24px;
   overflow: hidden;
   box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+  min-height: 0;
+  min-width: 0;
 }
 
 .chat-header {
@@ -209,6 +211,10 @@ body {
   background-repeat: repeat;
   background-size: auto, 400px;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
 }
 
 .message-row {
@@ -324,12 +330,21 @@ body {
 .fab-top:hover { background-color: #2a3942; color: white; }
 
 .fab-bottom {
-    position: absolute; bottom: 30px; right: 30px;
+    position: absolute; bottom: 20px; right: 20px;
     width: 42px; height: 42px; background-color: #202c33; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 6px rgba(0,0,0,0.3);
-    cursor: pointer; z-index: 1000; color: #8696a0; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    cursor: pointer; z-index: 1000; color: #8696a0; 
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.2s;
+    opacity: 0;
+    transform: scale(0.5) translateY(20px);
+    pointer-events: none;
 }
-.fab-bottom:hover { background-color: #2a3942; color: white; transform: scale(1.05); }
+.fab-bottom.visible {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    pointer-events: auto;
+}
+.fab-bottom.visible:hover { background-color: #2a3942; color: white; transform: scale(1.05); }
 
 /* DATE MENU */
 .date-menu {
