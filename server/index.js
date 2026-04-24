@@ -9,7 +9,7 @@ const app = express();
 // 🔴 THE NUKE: Hardcoding the exact allowed websites. 
 // It will now accept requests from your local machine AND your exact Cloudflare production link.
 app.use(cors({
-    origin: ['http://localhost:5173', 'https://webchat-viewer.pages.dev'],
+    origin: ['http://localhost:5173', 'https://mxj.pages.dev'],
     credentials: true
 }));
 
