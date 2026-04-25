@@ -43,6 +43,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
   const [firstItemIndex, setFirstItemIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [isJumping, setIsJumping] = useState(false);
+  const [pendingScroll, setPendingScroll] = useState(null);
 
   // Search
   const [searchOpen, setSearchOpen] = useState(false);
@@ -162,19 +163,31 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
         const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
           params: { limit: CHUNK_SIZE, offset }
         });
-        setMessages(res.data);
-        setFirstItemIndex(offset);
         
-        setTimeout(() => {
-           virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'auto' });
-           setIsJumping(false);
-        }, 150);
+        setFirstItemIndex(offset);
+        setMessages(res.data);
+        setPendingScroll({ index: targetIdx, align });
       } catch (err) {
         console.error("Jump error", err);
         setIsJumping(false);
       }
     }
   };
+
+  useEffect(() => {
+    if (pendingScroll !== null && messages.length > 0) {
+      const timeoutId = setTimeout(() => {
+        virtuosoRef.current?.scrollToIndex({ 
+          index: pendingScroll.index, 
+          align: pendingScroll.align, 
+          behavior: 'auto' 
+        });
+        setPendingScroll(null);
+        setIsJumping(false);
+      }, 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [messages, pendingScroll]);
 
   // Infinite Scroll Callbacks
   const loadOlder = useCallback(async () => {
