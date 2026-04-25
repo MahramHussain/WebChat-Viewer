@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { Virtuoso } from 'react-virtuoso';
 import { ArrowLeft, Search, ChevronUp, ChevronDown, Calendar, UploadCloud } from 'lucide-react';
 import axios from 'axios';
@@ -160,7 +161,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
     } else {
       setIsJumping(true);
       try {
-        const offset = align === 'start' ? targetIdx : Math.max(0, targetIdx - Math.floor(CHUNK_SIZE / 2));
+        const offset = align === 'start' ? Math.max(0, targetIdx - 10) : Math.max(0, targetIdx - Math.floor(CHUNK_SIZE / 2));
         const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
           params: { limit: CHUNK_SIZE, offset }
         });
@@ -206,9 +207,11 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
       
       const newItems = res.data;
       if (newItems.length > 0) {
-        // Decrease firstItemIndex by exactly the length of the prepended items
-        setFirstItemIndex(prev => prev - newItems.length);
-        setMessages(prev => [...newItems, ...prev]);
+        // Use flushSync to guarantee React commits this in exactly one frame, preventing scroll jitter
+        flushSync(() => {
+          setFirstItemIndex(prev => prev - newItems.length);
+          setMessages(prev => [...newItems, ...prev]);
+        });
       }
     } catch (err) {
       console.error("Load older error", err);
@@ -382,7 +385,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
                         {getUsernameTag(isOut, msg.sender)}
                       </span>
 
-                      <MessageBubble msg={msg} isOut={isOut} isHighlighted={isHighlighted} R2_URL={R2_URL} />
+                      <MessageBubble msg={msg} isOut={isOut} isHighlighted={isHighlighted} searchQuery={searchQuery} R2_URL={R2_URL} />
                     </div>
                   </div>
                 </div>

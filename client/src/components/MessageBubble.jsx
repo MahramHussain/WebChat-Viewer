@@ -4,18 +4,30 @@ import WaveAudioPlayer from './WaveAudioPlayer';
 import Lightbox from 'yet-another-react-lightbox';
 import 'yet-another-react-lightbox/styles.css';
 
-export default function MessageBubble({ msg, isOut, isHighlighted, R2_URL }) {
+export default function MessageBubble({ msg, isOut, isHighlighted, searchQuery, R2_URL }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  const linkify = (html) => {
-    // Match URLs not already inside an HTML tag (href="..." or src="...")
-    return html.replace(
+  const linkifyAndHighlight = (html) => {
+    let text = html || '';
+
+    // 1. Linkify URLs
+    text = text.replace(
       /((?:https?:\/\/|www\.)[^\s<]+)/gi,
       (url) => {
         const href = url.startsWith('www.') ? 'https://' + url : url;
         return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;word-break:break-all;">${url}</a>`;
       }
     );
+
+    // 2. Highlight the search query (ONLY OUTSIDE HTML TAGS)
+    if (searchQuery && searchQuery.trim() !== '') {
+      const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Match the query only if it's not inside an HTML tag.
+      const regex = new RegExp(`(${escapedQuery})(?![^<]*>)`, 'gi');
+      text = text.replace(regex, '<mark style="background-color: #ffeb3b; color: #000; padding: 0 2px; border-radius: 2px;">$1</mark>');
+    }
+
+    return text;
   };
   const renderBubbleContent = () => {
     switch (msg.type) {
@@ -57,7 +69,7 @@ export default function MessageBubble({ msg, isOut, isHighlighted, R2_URL }) {
           </a>
         );
       case 'video_note': return <video src={msg.media_url} className="media-video-note" controls muted playsInline preload="none" />;
-      default: return <div className="text-content" dangerouslySetInnerHTML={{ __html: linkify(msg.content || '') }} />;
+      default: return <div className="text-content" dangerouslySetInnerHTML={{ __html: linkifyAndHighlight(msg.content || '') }} />;
     }
   };
 
