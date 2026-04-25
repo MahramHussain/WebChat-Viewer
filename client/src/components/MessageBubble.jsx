@@ -85,8 +85,11 @@ export default function MessageBubble({ msg, isOut, isHighlighted, searchQuery, 
     }
   };
 
+  const isMediaOnly = msg.type === 'image' || msg.type === 'video' || msg.type === 'video_note' || msg.type === 'sticker';
+  const isAudio = msg.type === 'audio';
+
   return (
-    <div className={`message-bubble ${isHighlighted ? 'highlighted' : ''}`}>
+    <div className={`message-bubble ${isHighlighted ? 'highlighted' : ''} ${isMediaOnly ? 'media-only' : ''} ${isAudio ? 'bubble-audio' : ''}`}>
       {renderBubbleContent()}
       {msg.type !== 'sticker' && (
         <span className={`message-time ${msg.type === 'video_note' || msg.type === 'image' ? 'media-time' : ''}`}>

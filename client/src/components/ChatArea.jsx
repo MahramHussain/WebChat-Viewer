@@ -11,6 +11,7 @@ const CHUNK_SIZE = 500;
 
 export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploadOpen, R2_URL }) {
   const virtuosoRef = useRef(null);
+  const searchInputRef = useRef(null); // Added Ref to auto-focus the search bar
 
   const NAMES_ME = ["Secretive Person", "Jafrin", "My Moon ❤️", "My Love ❤️", "My everything ❤️", "My Wife ❤️"];
   const NAMES_MAHRAM = ["Mahram", "Daddy ❤️", "My Sunny ❤️", "My Husband ❤️"];
@@ -95,7 +96,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
           });
           setFirstItemIndex(initialOffset);
           setMessages(messagesRes.data);
-          setInitialTopMost(messagesRes.data.length - 1);
+          setInitialTopMost(total - 1);
           setVirtuosoKey(prev => prev + 1);
         }
       } catch (err) {
@@ -139,8 +140,28 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
     return () => clearTimeout(searchTimeoutRef.current);
   }, [searchQuery, activeChat]);
 
+  // Ctrl+F / Cmd+F Override to open custom search
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+        e.preventDefault(); // Blocks the browser's native find box
+        setSearchOpen(true);
+        // Slight delay ensures the input renders before focusing it
+        setTimeout(() => searchInputRef.current?.focus(), 50); 
+      }
+      
+      // Bonus: Pressing Escape closes the custom search bar
+      if (e.key === 'Escape' && searchOpen) {
+        setSearchOpen(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchOpen]);
+
   const navigateSearch = (direction) => {
-    if (searchMatches.length === 0) return;
+    if (searchMatches.length === 0 || loading || isFetchingChunk.current) return;
     let newIdx = currentMatchIdx + direction;
     if (newIdx < 0) newIdx = 0;
     if (newIdx >= searchMatches.length) newIdx = searchMatches.length - 1;
@@ -155,7 +176,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
     const isLoaded = targetIdx >= firstItemIndex && targetIdx < firstItemIndex + messages.length;
 
     if (isLoaded) {
-      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'smooth' });
+      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'auto' });
     } else {
       setLoading(true);
       try {
@@ -166,10 +187,69 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
         
         setFirstItemIndex(offset);
         setMessages(res.data);
-        setInitialTopMost(targetIdx - offset);
+        
+        const localIdx = targetIdx - offset;
+        const topMost = align === 'start' ? localIdx : Math.max(0, localIdx - 2);
+        setInitialTopMost(topMost);
+        
         setVirtuosoKey(prev => prev + 1);
       } catch (err) {
         console.error("Jump error", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Jump to the very bottom (latest messages)
+  const scrollToBottom = async () => {
+    if (!activeChat) return;
+    const targetIdx = totalMessages - 1;
+    const isLoaded = targetIdx >= firstItemIndex && targetIdx < firstItemIndex + messages.length;
+
+    if (isLoaded) {
+      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align: 'end', behavior: 'smooth' });
+    } else {
+      setLoading(true);
+      try {
+        const offset = Math.max(0, totalMessages - CHUNK_SIZE);
+        const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
+          params: { limit: CHUNK_SIZE, offset }
+        });
+        
+        setFirstItemIndex(offset);
+        setMessages(res.data);
+        setInitialTopMost(CHUNK_SIZE - 1);
+        setVirtuosoKey(prev => prev + 1);
+      } catch (err) {
+        console.error("Jump to bottom error", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Jump to the absolute top (first messages)
+  const scrollToTop = async () => {
+    if (!activeChat) return;
+    const targetIdx = 0;
+    const isLoaded = targetIdx >= firstItemIndex && targetIdx < firstItemIndex + messages.length;
+
+    if (isLoaded) {
+      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align: 'start', behavior: 'smooth' });
+    } else {
+      setLoading(true);
+      try {
+        const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
+          params: { limit: CHUNK_SIZE, offset: 0 }
+        });
+        
+        setFirstItemIndex(0);
+        setMessages(res.data);
+        setInitialTopMost(0);
+        setVirtuosoKey(prev => prev + 1);
+      } catch (err) {
+        console.error("Jump to top error", err);
       } finally {
         setLoading(false);
       }
@@ -192,7 +272,6 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
       
       const newItems = res.data;
       if (newItems.length > 0) {
-        // Use flushSync to guarantee React commits this in exactly one frame, preventing scroll jitter
         flushSync(() => {
           setFirstItemIndex(prev => prev - newItems.length);
           setMessages(prev => [...newItems, ...prev]);
@@ -268,10 +347,14 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
           <div className="fab-top" onClick={() => setUploadOpen(true)}>
             <UploadCloud size={isMobile ? 18 : 20} />
           </div>
-          <div className="fab-top" onClick={() => setSearchOpen(!searchOpen)}>
+          <div className="fab-top" onClick={() => {
+            setSearchOpen(!searchOpen);
+            // Auto-focus when clicking the magnifying glass icon too
+            if (!searchOpen) setTimeout(() => searchInputRef.current?.focus(), 50);
+          }}>
             <Search size={isMobile ? 18 : 20} />
           </div>
-          <div className="fab-top" onClick={() => virtuosoRef.current?.scrollToIndex({ index: 0, align: 'start', behavior: 'smooth' })}>
+          <div className="fab-top" onClick={scrollToTop}>
             <ChevronUp size={isMobile ? 20 : 22} />
           </div>
           <div className="fab-top" onClick={() => setDateMenuOpen(!dateMenuOpen)} style={{ backgroundColor: dateMenuOpen ? '#005c4b' : '', color: dateMenuOpen ? 'white' : '' }}>
@@ -288,6 +371,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
 
       <div className={`in-chat-search ${searchOpen ? 'visible' : ''}`}>
         <input
+          ref={searchInputRef} // Tied the ref directly to this input
           type="text"
           placeholder="Find in chat..."
           value={searchQuery}
@@ -297,10 +381,22 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
         <span className="search-count">
           {searchMatches.length > 0 ? `${currentMatchIdx + 1}/${searchMatches.length}` : '0/0'}
         </span>
-        <button className="icon-btn-small" onMouseDown={(e) => e.preventDefault()} onClick={() => navigateSearch(-1)}>
+        <button 
+          className="icon-btn-small" 
+          onMouseDown={(e) => e.preventDefault()} 
+          onClick={() => navigateSearch(-1)}
+          disabled={loading || isFetchingChunk.current}
+          style={{ opacity: (loading || isFetchingChunk.current) ? 0.5 : 1 }}
+        >
           <ChevronUp size={18} />
         </button>
-        <button className="icon-btn-small" onMouseDown={(e) => e.preventDefault()} onClick={() => navigateSearch(1)}>
+        <button 
+          className="icon-btn-small" 
+          onMouseDown={(e) => e.preventDefault()} 
+          onClick={() => navigateSearch(1)}
+          disabled={loading || isFetchingChunk.current}
+          style={{ opacity: (loading || isFetchingChunk.current) ? 0.5 : 1 }}
+        >
           <ChevronDown size={18} />
         </button>
       </div>
@@ -367,7 +463,11 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
                     />
 
                     <div className="message-content-wrapper">
-                      <span className="username-tag" style={{ color: isOut ? 'var(--accent-green)' : '#d864d8' }}>
+                      <span 
+                        key={getUsernameTag(isOut, msg.sender)} 
+                        className="username-tag" 
+                        style={{ color: isOut ? 'var(--accent-green)' : '#d864d8' }}
+                      >
                         {getUsernameTag(isOut, msg.sender)}
                       </span>
 
@@ -381,6 +481,21 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
         )}
       </div>
 
+      {/* Aesthetic UI Input Bar (Non-functional) */}
+      <div className="dummy-chat-bar">
+        <input 
+          type="text" 
+          className="dummy-input" 
+          placeholder="Message Mahram..." 
+          readOnly 
+        />
+        <button className="dummy-send-btn">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
+          </svg>
+        </button>
+      </div>
+
       <div className={`date-menu ${!dateMenuOpen ? 'hidden' : ''}`}>
         {backendDates.map(item => (
           <div key={item.index} className="date-link" onClick={() => {
@@ -392,10 +507,9 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
         ))}
       </div>
 
-      <div className={`fab-bottom ${showScrollBottom ? 'visible' : ''}`} onClick={() => virtuosoRef.current?.scrollToIndex({ index: totalMessages - 1, align: 'start', behavior: 'smooth' })}>
+      <div className={`fab-bottom ${showScrollBottom ? 'visible' : ''}`} onClick={scrollToBottom}>
         <ChevronDown size={24} />
       </div>
     </div>
   );
 }
-

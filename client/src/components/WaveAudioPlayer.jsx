@@ -150,7 +150,7 @@ export default function WaveAudioPlayer({ url, isOut, msg, R2_URL }) {
   );
 
   const waveform = (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2px', height: '24px', width: '198px', marginTop: '-4px' }}>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2px', height: '24px', width: '155px', marginTop: '-4px' }}>
       
       {peaks.map((heightFactor, i) => {
         const barProgress = i / peaks.length;
