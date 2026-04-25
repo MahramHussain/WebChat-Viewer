@@ -203,7 +203,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
     } finally {
       isFetchingChunk.current = false;
     }
-  }, [activeChat, firstItemIndex, loading, isJumping]);
+  }, [activeChat, firstItemIndex, loading]);
 
   const loadNewer = useCallback(async () => {
     if (!activeChat || loading || isFetchingChunk.current) return;
@@ -222,7 +222,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
     } finally {
       isFetchingChunk.current = false;
     }
-  }, [activeChat, firstItemIndex, messages.length, totalMessages, loading, isJumping]);
+  }, [activeChat, firstItemIndex, messages.length, totalMessages, loading]);
 
   const handleScrollState = useCallback((scrolling) => {
     setIsScrolling(scrolling);
