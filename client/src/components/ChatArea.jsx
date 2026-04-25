@@ -43,8 +43,8 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
   const [totalMessages, setTotalMessages] = useState(0);
   const [firstItemIndex, setFirstItemIndex] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [isJumping, setIsJumping] = useState(false);
-  const [pendingScroll, setPendingScroll] = useState(null);
+  const [virtuosoKey, setVirtuosoKey] = useState(0);
+  const [initialTopMost, setInitialTopMost] = useState(0);
   const isFetchingChunk = useRef(false);
 
   // Search
@@ -95,10 +95,8 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
           });
           setFirstItemIndex(initialOffset);
           setMessages(messagesRes.data);
-          
-          setTimeout(() => {
-            virtuosoRef.current?.scrollToIndex({ index: total - 1, align: 'end', behavior: 'auto' });
-          }, 100);
+          setInitialTopMost(messagesRes.data.length - 1);
+          setVirtuosoKey(prev => prev + 1);
         }
       } catch (err) {
         console.error("Initialization error", err);
@@ -157,43 +155,30 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
     const isLoaded = targetIdx >= firstItemIndex && targetIdx < firstItemIndex + messages.length;
 
     if (isLoaded) {
-      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'smooth' });
+      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'auto' });
     } else {
-      setIsJumping(true);
+      setLoading(true);
       try {
-        const offset = align === 'start' ? Math.max(0, targetIdx - 10) : Math.max(0, targetIdx - Math.floor(CHUNK_SIZE / 2));
+        const offset = align === 'start' ? targetIdx : Math.max(0, targetIdx - Math.floor(CHUNK_SIZE / 2));
         const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
           params: { limit: CHUNK_SIZE, offset }
         });
         
         setFirstItemIndex(offset);
         setMessages(res.data);
-        setPendingScroll({ index: targetIdx, align });
+        setInitialTopMost(targetIdx - offset);
+        setVirtuosoKey(prev => prev + 1);
       } catch (err) {
         console.error("Jump error", err);
-        setIsJumping(false);
+      } finally {
+        setLoading(false);
       }
     }
   };
 
-  useEffect(() => {
-    if (pendingScroll !== null && messages.length > 0) {
-      const timeoutId = setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({ 
-          index: pendingScroll.index, 
-          align: pendingScroll.align, 
-          behavior: 'auto' 
-        });
-        setPendingScroll(null);
-        setIsJumping(false);
-      }, 100);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [messages, pendingScroll]);
-
   // Infinite Scroll Callbacks
   const loadOlder = useCallback(async () => {
-    if (!activeChat || firstItemIndex <= 0 || loading || isJumping || isFetchingChunk.current) return;
+    if (!activeChat || firstItemIndex <= 0 || loading || isFetchingChunk.current) return;
     
     isFetchingChunk.current = true;
     try {
@@ -221,7 +206,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
   }, [activeChat, firstItemIndex, loading, isJumping]);
 
   const loadNewer = useCallback(async () => {
-    if (!activeChat || loading || isJumping || isFetchingChunk.current) return;
+    if (!activeChat || loading || isFetchingChunk.current) return;
     const currentEnd = firstItemIndex + messages.length;
     if (currentEnd >= totalMessages) return;
 
@@ -321,7 +306,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
       </div>
 
       <div className="messages-container-wrapper">
-        {(loading || isJumping) && (
+        {loading && (
           <div className="loader-container" style={{ position: 'absolute', zIndex: 10, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
             <div className="loader"></div>
           </div>
@@ -329,12 +314,13 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
         
         {!loading && messages.length > 0 && (
           <Virtuoso
+            key={virtuosoKey}
             ref={virtuosoRef}
             style={{ flex: 1, width: '100%' }}
             data={messages}
             firstItemIndex={firstItemIndex}
             computeItemKey={(index, item) => item.id || index}
-            initialTopMostItemIndex={messages.length - 1}
+            initialTopMostItemIndex={initialTopMost}
             startReached={loadOlder}
             endReached={loadNewer}
             isScrolling={handleScrollState}

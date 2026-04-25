@@ -7,28 +7,33 @@ import 'yet-another-react-lightbox/styles.css';
 export default function MessageBubble({ msg, isOut, isHighlighted, searchQuery, R2_URL }) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
 
-  const linkifyAndHighlight = (html) => {
-    let text = html || '';
-
-    // 1. Linkify URLs
-    text = text.replace(
-      /((?:https?:\/\/|www\.)[^\s<]+)/gi,
-      (url) => {
-        const href = url.startsWith('www.') ? 'https://' + url : url;
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color:#53bdeb;word-break:break-all;">${url}</a>`;
+  const renderTextContent = (text) => {
+    if (!text) return null;
+    
+    // 1. Split by URLs
+    const urlRegex = /((?:https?:\/\/|www\.)[^\s<]+)/gi;
+    const parts = text.split(urlRegex);
+    
+    return parts.map((part, i) => {
+      if (part.match(urlRegex)) {
+        const href = part.startsWith('www.') ? 'https://' + part : part;
+        return <a key={i} href={href} target="_blank" rel="noopener noreferrer" style={{color:'#53bdeb', wordBreak:'break-all'}}>{part}</a>;
+      } else {
+        // Not a URL, now highlight search queries
+        if (searchQuery && searchQuery.trim()) {
+          const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const searchParts = part.split(new RegExp(`(${escapedQuery})`, 'gi'));
+          return searchParts.map((sp, j) => 
+            sp.toLowerCase() === searchQuery.toLowerCase() 
+              ? <mark key={`${i}-${j}`} style={{ backgroundColor: '#ffeb3b', color: '#000', padding: '0 2px', borderRadius: '2px' }}>{sp}</mark> 
+              : <React.Fragment key={`${i}-${j}`}>{sp}</React.Fragment>
+          );
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
       }
-    );
-
-    // 2. Highlight the search query (ONLY OUTSIDE HTML TAGS)
-    if (searchQuery && searchQuery.trim() !== '') {
-      const escapedQuery = searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Match the query only if it's not inside an HTML tag.
-      const regex = new RegExp(`(${escapedQuery})(?![^<]*>)`, 'gi');
-      text = text.replace(regex, '<mark style="background-color: #ffeb3b; color: #000; padding: 0 2px; border-radius: 2px;">$1</mark>');
-    }
-
-    return text;
+    });
   };
+
   const renderBubbleContent = () => {
     switch (msg.type) {
       case 'image': 
@@ -69,7 +74,7 @@ export default function MessageBubble({ msg, isOut, isHighlighted, searchQuery, 
           </a>
         );
       case 'video_note': return <video src={msg.media_url} className="media-video-note" controls muted playsInline preload="none" />;
-      default: return <div className="text-content" dangerouslySetInnerHTML={{ __html: linkifyAndHighlight(msg.content || '') }} />;
+      default: return <div className="text-content" style={{ whiteSpace: 'pre-wrap' }}>{renderTextContent(msg.content)}</div>;
     }
   };
 
