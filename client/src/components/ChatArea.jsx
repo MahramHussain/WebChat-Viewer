@@ -44,6 +44,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
   const [loading, setLoading] = useState(false);
   const [isJumping, setIsJumping] = useState(false);
   const [pendingScroll, setPendingScroll] = useState(null);
+  const isFetchingChunk = useRef(false);
 
   // Search
   const [searchOpen, setSearchOpen] = useState(false);
@@ -159,7 +160,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
     } else {
       setIsJumping(true);
       try {
-        const offset = Math.max(0, targetIdx - Math.floor(CHUNK_SIZE / 2));
+        const offset = align === 'start' ? targetIdx : Math.max(0, targetIdx - Math.floor(CHUNK_SIZE / 2));
         const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
           params: { limit: CHUNK_SIZE, offset }
         });
@@ -191,8 +192,9 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
 
   // Infinite Scroll Callbacks
   const loadOlder = useCallback(async () => {
-    if (!activeChat || firstItemIndex === 0 || loading || isJumping) return;
+    if (!activeChat || firstItemIndex <= 0 || loading || isJumping || isFetchingChunk.current) return;
     
+    isFetchingChunk.current = true;
     try {
       const offset = Math.max(0, firstItemIndex - CHUNK_SIZE);
       const limit = firstItemIndex - offset;
@@ -210,14 +212,17 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
       }
     } catch (err) {
       console.error("Load older error", err);
+    } finally {
+      isFetchingChunk.current = false;
     }
   }, [activeChat, firstItemIndex, loading, isJumping]);
 
   const loadNewer = useCallback(async () => {
-    if (!activeChat || loading || isJumping) return;
+    if (!activeChat || loading || isJumping || isFetchingChunk.current) return;
     const currentEnd = firstItemIndex + messages.length;
     if (currentEnd >= totalMessages) return;
 
+    isFetchingChunk.current = true;
     try {
       const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
         params: { limit: CHUNK_SIZE, offset: currentEnd }
@@ -226,6 +231,8 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
       setMessages(prev => [...prev, ...res.data]);
     } catch (err) {
       console.error("Load newer error", err);
+    } finally {
+      isFetchingChunk.current = false;
     }
   }, [activeChat, firstItemIndex, messages.length, totalMessages, loading, isJumping]);
 
@@ -323,6 +330,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
             style={{ flex: 1, width: '100%' }}
             data={messages}
             firstItemIndex={firstItemIndex}
+            computeItemKey={(index, item) => item.id || index}
             initialTopMostItemIndex={messages.length - 1}
             startReached={loadOlder}
             endReached={loadNewer}
