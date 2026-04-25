@@ -16,8 +16,6 @@ export default function App() {
   
   const [chats, setChats] = useState([]);
   const [activeChat, setActiveChat] = useState(null);
-  const [messages, setMessages] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -36,19 +34,7 @@ export default function App() {
     }
   }, [unlocked]);
 
-  useEffect(() => {
-    if (!activeChat) return;
 
-    setLoading(true);
-    axios.get(`${API_URL}/api/chats/${activeChat.id}/messages?limit=400000`)
-      .then((res) => {
-        setMessages(res.data);
-      })
-      .catch((err) => console.error(err))
-      .finally(() => {
-        setLoading(false);
-      });
-  }, [activeChat]);
 
   if (!unlocked) {
     return (
@@ -82,8 +68,6 @@ export default function App() {
         isMobile={isMobile}
         activeChat={activeChat}
         setActiveChat={setActiveChat}
-        messages={messages}
-        loading={loading}
         setUploadOpen={setUploadOpen}
         R2_URL={R2_URL}
       />

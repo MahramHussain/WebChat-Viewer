@@ -9,7 +9,7 @@ const app = express();
 // 🔴 THE NUKE: Hardcoding the exact allowed websites. 
 // It will now accept requests from your local machine AND your exact Cloudflare production link.
 app.use(cors({
-    origin: ['http://localhost:5173', 'https://mxj.pages.dev'],
+    origin: ['http://localhost:5173', 'https://mxj.pages.dev', 'http://10.5.53.235:5173'],
     credentials: true
 }));
 
@@ -48,19 +48,71 @@ app.get('/api/chats', (req, res) => {
   }
 });
 
+// Get total messages for a specific chat
+app.get('/api/chats/:id/total', (req, res) => {
+  const { id } = req.params;
+  try {
+    const row = db.prepare('SELECT COUNT(*) as total FROM messages WHERE chat_id = ?').get(id);
+    res.json({ total: row.total });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get unique dates and their corresponding message indices
+app.get('/api/chats/:id/dates', (req, res) => {
+  const { id } = req.params;
+  try {
+    const messages = db.prepare('SELECT id, timestamp FROM messages WHERE chat_id = ? ORDER BY id ASC').all(id);
+    const dates = [];
+    let lastDate = null;
+    messages.forEach((msg, index) => {
+      const msgDate = msg.timestamp.split(' ')[0];
+      if (msgDate !== lastDate) {
+        dates.push({ label: msgDate, index });
+        lastDate = msgDate;
+      }
+    });
+    res.json(dates);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Search messages
+app.get('/api/chats/:id/search', (req, res) => {
+  const { id } = req.params;
+  const { q } = req.query;
+  if (!q) return res.json([]);
+  
+  try {
+    const messages = db.prepare('SELECT id, content FROM messages WHERE chat_id = ? ORDER BY id ASC').all(id);
+    const qLower = q.toLowerCase();
+    const matches = [];
+    messages.forEach((msg, index) => {
+      if (msg.content && msg.content.toLowerCase().includes(qLower)) {
+        matches.push(index);
+      }
+    });
+    res.json(matches);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Get messages for a specific chat with offset pagination
 app.get('/api/chats/:id/messages', (req, res) => {
   const { id } = req.params;
-  const { limit = 1000, offset = 0 } = req.query;
+  const { limit = 500, offset = 0 } = req.query;
 
   try {
     const messages = db.prepare(`
       SELECT * FROM messages 
       WHERE chat_id = ? 
-      ORDER BY id DESC 
+      ORDER BY id ASC 
       LIMIT ? OFFSET ?
     `).all(id, parseInt(limit), parseInt(offset));
-    res.json(messages.reverse());
+    res.json(messages);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

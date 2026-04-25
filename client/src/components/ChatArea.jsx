@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { ArrowLeft, Search, ChevronUp, ChevronDown, Calendar, UploadCloud } from 'lucide-react';
+import axios from 'axios';
 import MessageBubble from './MessageBubble';
 import { formatNiceDate } from '../utils';
 
-export default function ChatArea({ isMobile, activeChat, setActiveChat, messages, loading, setUploadOpen, R2_URL }) {
+const API_URL = import.meta.env.VITE_API_URL || '';
+const CHUNK_SIZE = 500;
+
+export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploadOpen, R2_URL }) {
   const virtuosoRef = useRef(null);
 
   const NAMES_ME = ["Secretive Person", "Jafrin", "My Moon ❤️", "My Love ❤️", "My everything ❤️", "My Wife ❤️"];
@@ -33,14 +37,23 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
     return sender;
   };
 
+  // State
+  const [messages, setMessages] = useState([]);
+  const [totalMessages, setTotalMessages] = useState(0);
+  const [firstItemIndex, setFirstItemIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [isJumping, setIsJumping] = useState(false);
+
   // Search
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchMatches, setSearchMatches] = useState([]);
   const [currentMatchIdx, setCurrentMatchIdx] = useState(-1);
+  const searchTimeoutRef = useRef(null);
 
   // Date Menu
   const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const [backendDates, setBackendDates] = useState([]);
 
   // Floating Date
   const [topIndex, setTopIndex] = useState(0);
@@ -49,64 +62,159 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
   const [showScrollBottom, setShowScrollBottom] = useState(false);
   const scrollingTimeout = useRef(null);
 
-  const displayMessages = useMemo(() => {
-    if (!isMobile) return messages;
-    // Mobile browsers have a strict CSS height limit (e.g., ~8.3 million pixels on iOS).
-    // 342,000 messages easily exceeds 20 million pixels, causing the browser to cut off
-    // the bottom of the container, making the newest messages inaccessible.
-    // By slicing to the latest 80,000 messages on mobile, we safely bypass this limit
-    // while still providing years of chat history. Desktop remains unaffected.
-    return messages.length > 80000 ? messages.slice(-80000) : messages;
-  }, [messages, isMobile]);
-
+  // Initialize Chat
   useEffect(() => {
-    if (displayMessages.length) {
-      setTimeout(() => {
-        virtuosoRef.current?.scrollToIndex({ index: displayMessages.length - 1, align: 'end', behavior: 'auto' });
-      }, 100);
-    }
-  }, [displayMessages.length]);
+    if (!activeChat) return;
 
+    const initChat = async () => {
+      setLoading(true);
+      setMessages([]);
+      setFirstItemIndex(0);
+      setSearchQuery('');
+      setSearchMatches([]);
+      setCurrentMatchIdx(-1);
+      setSearchOpen(false);
+      setDateMenuOpen(false);
+
+      try {
+        const totalRes = await axios.get(`${API_URL}/api/chats/${activeChat.id}/total`);
+        const total = totalRes.data.total;
+        setTotalMessages(total);
+
+        axios.get(`${API_URL}/api/chats/${activeChat.id}/dates`).then(res => {
+          setBackendDates(res.data);
+        }).catch(err => console.error("Failed to load dates", err));
+
+        if (total > 0) {
+          const initialOffset = Math.max(0, total - CHUNK_SIZE);
+          const messagesRes = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
+            params: { limit: CHUNK_SIZE, offset: initialOffset }
+          });
+          setFirstItemIndex(initialOffset);
+          setMessages(messagesRes.data);
+          
+          setTimeout(() => {
+            virtuosoRef.current?.scrollToIndex({ index: total - 1, align: 'end', behavior: 'auto' });
+          }, 100);
+        }
+      } catch (err) {
+        console.error("Initialization error", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initChat();
+  }, [activeChat]);
+
+  // Handle Search Input (Debounced)
   useEffect(() => {
     if (!searchQuery) {
       setSearchMatches([]);
       setCurrentMatchIdx(-1);
       return;
     }
-    const q = searchQuery.toLowerCase();
-    const matches = displayMessages
-      .map((m, idx) => (m.content && m.content.toLowerCase().includes(q) ? idx : -1))
-      .filter((i) => i !== -1);
 
-    setSearchMatches(matches);
-    if (matches.length > 0) {
-      setCurrentMatchIdx(matches.length - 1);
-      jumpToSearchIdx(matches.length - 1, matches);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/search`, {
+          params: { q: searchQuery }
+        });
+        const matches = res.data;
+        setSearchMatches(matches);
+        if (matches.length > 0) {
+          setCurrentMatchIdx(matches.length - 1);
+          jumpToIdx(matches[matches.length - 1], 'center');
+        } else {
+          setCurrentMatchIdx(-1);
+        }
+      } catch (err) {
+        console.error("Search error", err);
+      }
+    }, 500);
+
+    return () => clearTimeout(searchTimeoutRef.current);
+  }, [searchQuery, activeChat]);
+
+  const navigateSearch = (direction) => {
+    if (searchMatches.length === 0) return;
+    let newIdx = currentMatchIdx + direction;
+    if (newIdx < 0) newIdx = 0;
+    if (newIdx >= searchMatches.length) newIdx = searchMatches.length - 1;
+    setCurrentMatchIdx(newIdx);
+    jumpToIdx(searchMatches[newIdx], 'center');
+  };
+
+  // Jump to an index (chunked)
+  const jumpToIdx = async (targetIdx, align = 'start') => {
+    if (!activeChat) return;
+
+    const isLoaded = targetIdx >= firstItemIndex && targetIdx < firstItemIndex + messages.length;
+
+    if (isLoaded) {
+      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'smooth' });
     } else {
-      setCurrentMatchIdx(-1);
-    }
-  }, [searchQuery, displayMessages]);
-
-  const jumpToSearchIdx = (matchListIdx, matches = searchMatches) => {
-    const virtualIdx = matches[matchListIdx];
-    if (virtualIdx !== undefined && virtuosoRef.current) {
-      virtuosoRef.current.scrollToIndex({ index: virtualIdx, align: 'center', behavior: 'smooth' });
+      setIsJumping(true);
+      try {
+        const offset = Math.max(0, targetIdx - Math.floor(CHUNK_SIZE / 2));
+        const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
+          params: { limit: CHUNK_SIZE, offset }
+        });
+        setMessages(res.data);
+        setFirstItemIndex(offset);
+        
+        setTimeout(() => {
+           virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'auto' });
+           setIsJumping(false);
+        }, 150);
+      } catch (err) {
+        console.error("Jump error", err);
+        setIsJumping(false);
+      }
     }
   };
 
-  const dateIndexes = useMemo(() => {
-    const dates = [];
-    if (!displayMessages.length) return dates;
-    let lastDate = null;
-    displayMessages.forEach((msg, idx) => {
-      const msgDate = msg.timestamp.split(' ')[0];
-      if (msgDate !== lastDate) {
-        dates.push({ label: formatNiceDate(msgDate), index: idx });
-        lastDate = msgDate;
+  // Infinite Scroll Callbacks
+  const loadOlder = useCallback(async () => {
+    if (!activeChat || firstItemIndex === 0 || loading || isJumping) return;
+    
+    try {
+      const offset = Math.max(0, firstItemIndex - CHUNK_SIZE);
+      const limit = firstItemIndex - offset;
+      if (limit <= 0) return;
+      
+      const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
+        params: { limit, offset }
+      });
+      
+      const newItems = res.data;
+      if (newItems.length > 0) {
+        // Decrease firstItemIndex by exactly the length of the prepended items
+        setFirstItemIndex(prev => prev - newItems.length);
+        setMessages(prev => [...newItems, ...prev]);
       }
-    });
-    return dates;
-  }, [displayMessages]);
+    } catch (err) {
+      console.error("Load older error", err);
+    }
+  }, [activeChat, firstItemIndex, loading, isJumping]);
+
+  const loadNewer = useCallback(async () => {
+    if (!activeChat || loading || isJumping) return;
+    const currentEnd = firstItemIndex + messages.length;
+    if (currentEnd >= totalMessages) return;
+
+    try {
+      const res = await axios.get(`${API_URL}/api/chats/${activeChat.id}/messages`, {
+        params: { limit: CHUNK_SIZE, offset: currentEnd }
+      });
+      
+      setMessages(prev => [...prev, ...res.data]);
+    } catch (err) {
+      console.error("Load newer error", err);
+    }
+  }, [activeChat, firstItemIndex, messages.length, totalMessages, loading, isJumping]);
 
   const handleScrollState = useCallback((scrolling) => {
     setIsScrolling(scrolling);
@@ -116,7 +224,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
     } else {
       scrollingTimeout.current = setTimeout(() => {
         setShowFloatingDate(false);
-      }, 1500); // hide after 1.5 seconds of stopping
+      }, 1500);
     }
   }, []);
 
@@ -131,7 +239,9 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
     );
   }
 
-  const floatingDateString = displayMessages[topIndex] ? formatNiceDate(displayMessages[topIndex].timestamp.split(' ')[0]) : '';
+  const relativeTopIdx = topIndex - firstItemIndex;
+  const topMsg = messages[relativeTopIdx];
+  const floatingDateString = topMsg ? formatNiceDate(topMsg.timestamp.split(' ')[0]) : '';
 
   return (
     <div className="main-chat" style={{ display: isMobile ? 'flex' : 'flex' }}>
@@ -143,7 +253,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
         <img src={activeChat.img} alt={activeChat.name} className="chat-avatar" style={{ flexShrink: 0 }} />
         <div style={{ flex: 1, minWidth: 0, paddingRight: '10px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{activeChat.name}</h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{messages.length.toLocaleString()} messages</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{totalMessages.toLocaleString()} messages</p>
         </div>
 
         <div className="fab-top-group">
@@ -179,32 +289,42 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
         <span className="search-count">
           {searchMatches.length > 0 ? `${currentMatchIdx + 1}/${searchMatches.length}` : '0/0'}
         </span>
-        <button className="icon-btn-small" onClick={() => { if (currentMatchIdx > 0) { setCurrentMatchIdx(prev => prev - 1); jumpToSearchIdx(currentMatchIdx - 1); } }}>
+        <button className="icon-btn-small" onClick={() => navigateSearch(-1)}>
           <ChevronUp size={18} />
         </button>
-        <button className="icon-btn-small" onClick={() => { if (currentMatchIdx < searchMatches.length - 1) { setCurrentMatchIdx(prev => prev + 1); jumpToSearchIdx(currentMatchIdx + 1); } }}>
+        <button className="icon-btn-small" onClick={() => navigateSearch(1)}>
           <ChevronDown size={18} />
         </button>
       </div>
 
       <div className="messages-container-wrapper">
-        {loading && <div className="loader"></div>}
-        {!loading && (
+        {(loading || isJumping) && (
+          <div className="loader-container" style={{ position: 'absolute', zIndex: 10, top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+            <div className="loader"></div>
+          </div>
+        )}
+        
+        {!loading && messages.length > 0 && (
           <Virtuoso
             ref={virtuosoRef}
             style={{ flex: 1, width: '100%' }}
-            data={displayMessages}
-            initialTopMostItemIndex={displayMessages.length - 1}
+            data={messages}
+            firstItemIndex={firstItemIndex}
+            initialTopMostItemIndex={messages.length - 1}
+            startReached={loadOlder}
+            endReached={loadNewer}
             isScrolling={handleScrollState}
             atBottomThreshold={100}
             atBottomStateChange={(atBottom) => setShowScrollBottom(!atBottom)}
             rangeChanged={(range) => setTopIndex(range.startIndex)}
             itemContent={(index, msg) => {
+              const arrayIndex = index - firstItemIndex;
               let showDate = false;
               let msgDate = msg.timestamp.split(' ')[0];
-              if (index === 0) showDate = true;
+              
+              if (arrayIndex === 0) showDate = true;
               else {
-                const prevDate = displayMessages[index - 1]?.timestamp.split(' ')[0];
+                const prevDate = messages[arrayIndex - 1]?.timestamp.split(' ')[0];
                 if (msgDate !== prevDate) showDate = true;
               }
 
@@ -252,19 +372,20 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, messages
       </div>
 
       <div className={`date-menu ${!dateMenuOpen ? 'hidden' : ''}`}>
-        {dateIndexes.map(item => (
+        {backendDates.map(item => (
           <div key={item.index} className="date-link" onClick={() => {
-            virtuosoRef.current?.scrollToIndex({ index: item.index, align: 'start', behavior: 'smooth' });
+            jumpToIdx(item.index, 'start');
             setDateMenuOpen(false);
           }}>
-            {item.label}
+            {formatNiceDate(item.label)}
           </div>
         ))}
       </div>
 
-      <div className={`fab-bottom ${showScrollBottom ? 'visible' : ''}`} onClick={() => virtuosoRef.current?.scrollToIndex({ index: displayMessages.length - 1, align: 'start', behavior: 'smooth' })}>
+      <div className={`fab-bottom ${showScrollBottom ? 'visible' : ''}`} onClick={() => virtuosoRef.current?.scrollToIndex({ index: totalMessages - 1, align: 'start', behavior: 'smooth' })}>
         <ChevronDown size={24} />
       </div>
     </div>
   );
 }
+
