@@ -25,7 +25,14 @@ export default function MessageBubble({ msg, isOut, isHighlighted, searchQuery, 
           const searchParts = part.split(new RegExp(`(${escapedQuery})`, 'gi'));
           return searchParts.map((sp, j) => 
             sp.toLowerCase() === searchQuery.toLowerCase() 
-              ? <mark key={`${i}-${j}`} style={{ backgroundColor: '#ffeb3b', color: '#000', padding: '0 2px', borderRadius: '2px' }}>{sp}</mark> 
+              ? <mark key={`${i}-${j}`} style={{ 
+                  backgroundColor: isHighlighted ? '#ff9800' : '#ffeb3b', 
+                  color: '#000', 
+                  padding: '0 2px', 
+                  borderRadius: '2px',
+                  boxShadow: isHighlighted ? '0 0 0 2px rgba(255,152,0,0.5)' : 'none',
+                  transition: 'background-color 0.3s ease, box-shadow 0.3s ease'
+                }}>{sp}</mark> 
               : <React.Fragment key={`${i}-${j}`}>{sp}</React.Fragment>
           );
         }

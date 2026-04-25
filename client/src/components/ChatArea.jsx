@@ -155,7 +155,7 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
     const isLoaded = targetIdx >= firstItemIndex && targetIdx < firstItemIndex + messages.length;
 
     if (isLoaded) {
-      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'auto' });
+      virtuosoRef.current?.scrollToIndex({ index: targetIdx, align, behavior: 'smooth' });
     } else {
       setLoading(true);
       try {
@@ -297,10 +297,10 @@ export default function ChatArea({ isMobile, activeChat, setActiveChat, setUploa
         <span className="search-count">
           {searchMatches.length > 0 ? `${currentMatchIdx + 1}/${searchMatches.length}` : '0/0'}
         </span>
-        <button className="icon-btn-small" onClick={() => navigateSearch(-1)}>
+        <button className="icon-btn-small" onMouseDown={(e) => e.preventDefault()} onClick={() => navigateSearch(-1)}>
           <ChevronUp size={18} />
         </button>
-        <button className="icon-btn-small" onClick={() => navigateSearch(1)}>
+        <button className="icon-btn-small" onMouseDown={(e) => e.preventDefault()} onClick={() => navigateSearch(1)}>
           <ChevronDown size={18} />
         </button>
       </div>
